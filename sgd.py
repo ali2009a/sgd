@@ -3,6 +3,8 @@ from itertools import combinations, chain
 from math import factorial
 from tqdm import tqdm
 import numpy as np
+from heapq import heappush, heappop
+
 
 def readData():
     features = pd.read_csv("data/features.csv")
@@ -72,18 +74,46 @@ class Conjuction:
 
 
 
+def add_if_required(result, sg, quality, result_set_size):
+    # if quality > task.min_quality:
+    #     if check_for_duplicates and (quality, sg) in result:
+    #         return
+    if len(result) < result_set_size:
+        heappush(result, (quality, sg))
+    elif quality > result[0][0]:
+        heappop(result)
+        print (result)
+        print (quality)
+        print (sg)
+        heappush(result, (quality, sg))
 
+
+def computeScore(sg_vector, outcome_vector):
+    n=len(sg_vector)
+    tab = pd.crosstab(sg_vector,outcome_vector)
+    n11 = tab[1][1]
+    n10 = tab[1][0]
+    n01 = tab[0][1]
+    n00 = tab[0][0]
+    quality = (n11+n00)/n
+    return quality
 
 def simpleSearch(target, selectors, data):
     searchSpace = createSearchSpace(selectors,2)
     print (searchSpace)
     tqdm_searchSpace = tqdm(searchSpace[0],total=searchSpace[1])
+    result = []
     for selectors_one_point in tqdm_searchSpace:
         sg = Conjuction(selectors_one_point)
         sg_vector = sg.covers(data)
         outcome_vector = target.covers(data)
         print(len(sg_vector))
         print(len(outcome_vector))
+        quality = computeScore(sg_vector, outcome_vector)
+        # result.append((quality,selectors_one_point))
+        print (result)
+        add_if_required(result, sg, quality, 3)
+    return result
 
 
 def main():
