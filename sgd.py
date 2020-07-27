@@ -32,5 +32,7 @@ def createSelectors(data, ignore=[]):
     print (selectors)
     return selectors
 
+    
+
 
 
