@@ -8,6 +8,7 @@ from heapq import heappush, heappop
 
 def readData():
     features = pd.read_csv("data/features.csv")
+    features = features.iloc[:,:-5]
     clinicalData  =pd.read_excel("data/ClinicalData.xlsx")
     features["outcome"] = clinicalData["Cardiotoxicity"]
     features=features.set_index("index")
@@ -100,29 +101,34 @@ def add_if_required(result, sg, quality, result_set_size):
         heappush(result, (quality, sg))
 
 
-def computeScore(sg_vector, outcome_vector):
+def computeScore(sg_vector, outcome_vector, measure):
     n=len(sg_vector)
     sg_vector = sg_vector.astype(int)
     outcome_vector = outcome_vector.astype(int)
     tab = pd.crosstab(sg_vector,outcome_vector)
-    if not 0 in tab.index:
-        tab.loc[0]=0
-    if not 1 in tab.index:
+    if not 1 in tab.index:       
         tab.loc[1]=0
-    if not 0 in tab:
-        tab[0]=0
-    if not 1 in tab:
-        tab[1]=0
- 
+
+
     n11 = tab.loc[1][1]
     n10 = tab.loc[1][0]
     n01 = tab.loc[0][1]
     n00 = tab.loc[0][0]
 
-    quality = (n11+n00)/n
+    if measure=="accuracy":
+        quality = (n11+n00)/n
+    elif measure=="oddsRatio":
+        quality = (n00*n11)/(n10*n01)
+    elif measure=="colligation":
+        quality= ( n11*n00 - n10*n01 )/( n11*n00 + n10*n01 )
+    elif measure=="goodman":
+        quality = 1- ((min(n11,n10)+min(n00,n01))/(min(n01,n10)))
+    elif measure=="f1":
+        quality = (2*n11)/(n10+n01)
+
     return quality
 
-def simpleSearch(target, selectors, data):
+def simpleSearch(target, selectors, data, measure):
     searchSpace = createSearchSpace(selectors,2)
     # print (searchSpace[1])
     # searchSpace = searchSpace[0]
@@ -133,9 +139,9 @@ def simpleSearch(target, selectors, data):
         sg = Conjuction(selectors_one_point)
         sg_vector = sg.covers(data)
         outcome_vector = target.covers(data)
-        quality = computeScore(sg_vector, outcome_vector)
+        quality = computeScore(sg_vector, outcome_vector, measure)
         # result.append((quality,selectors_one_point))
-        add_if_required(result, sg, quality, 3)
+        add_if_required(result, sg, quality, 10)
     print ("simple search finished")
     return result
 
@@ -144,6 +150,14 @@ def main():
     data=readData()
     target=createTarget("outcome",True)
     selectors = createSelectors(data,["outcome"])
-    simpleSearch(target, selectors, data)
+    with open("result.txt","w") as f:
+        for measure in ["accuracy", "oddsRatio", "colligation", "goodman", "f1"]:
+            f.write(measure)
+            f.write("\n")
+            result = simpleSearch(target, selectors, data, measure)
+            for r in result:
+                f.write("\t"+str(r))
+                f.write("\n")
+            f.write("\n")
     print("end finished")
-
+    return result
