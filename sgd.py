@@ -26,7 +26,16 @@ class EquitySelector():
             return pd.isnull(column_data)
         return column_data == self.value
 
+    def __repr__(self):
+        query=""
+        if np.isnan(self.value):
+            query = self.attribute + ".isnull()"
+        else:
+            query = str(self.attribute) + "==" + str(self.value)
+        return query    
 
+    def __lt__(self, other):
+        return repr(self) < repr(other)
 
 # class BinaryTarget():
 #     def __init__(self, attribute, value):
@@ -40,12 +49,9 @@ def createTarget(attribute, value):
 def createSelectors(data, ignore=[]):
     selectors = []
     for attr_name in [x for x in data if x not in ignore]:
-        print (attr_name)
         for val in pd.unique(data[attr_name]):
-            print (val)
             selector = EquitySelector(attr_name, val)
             selectors.append(selector)
-    print (selectors)
     return selectors
 
 
@@ -73,6 +79,15 @@ class Conjuction:
         return np.all([sel.covers(data) for sel in self.selectors], axis=0)
 
 
+    def __repr__(self, open_brackets="", closing_brackets="", and_term=" AND "):
+        attrs = sorted(str(sel) for sel in self.selectors)
+        return "".join((open_brackets, and_term.join(attrs), closing_brackets))
+
+    def __lt__(self, other):
+        return repr(self) < repr(other)
+
+
+
 
 def add_if_required(result, sg, quality, result_set_size):
     # if quality > task.min_quality:
@@ -82,37 +97,46 @@ def add_if_required(result, sg, quality, result_set_size):
         heappush(result, (quality, sg))
     elif quality > result[0][0]:
         heappop(result)
-        print (result)
-        print (quality)
-        print (sg)
         heappush(result, (quality, sg))
 
 
 def computeScore(sg_vector, outcome_vector):
     n=len(sg_vector)
+    sg_vector = sg_vector.astype(int)
+    outcome_vector = outcome_vector.astype(int)
     tab = pd.crosstab(sg_vector,outcome_vector)
-    n11 = tab[1][1]
-    n10 = tab[1][0]
-    n01 = tab[0][1]
-    n00 = tab[0][0]
+    if not 0 in tab.index:
+        tab.loc[0]=0
+    if not 1 in tab.index:
+        tab.loc[1]=0
+    if not 0 in tab:
+        tab[0]=0
+    if not 1 in tab:
+        tab[1]=0
+ 
+    n11 = tab.loc[1][1]
+    n10 = tab.loc[1][0]
+    n01 = tab.loc[0][1]
+    n00 = tab.loc[0][0]
+
     quality = (n11+n00)/n
     return quality
 
 def simpleSearch(target, selectors, data):
     searchSpace = createSearchSpace(selectors,2)
-    print (searchSpace)
+    # print (searchSpace[1])
+    # searchSpace = searchSpace[0]
+    # print(type(searchSpace))
     tqdm_searchSpace = tqdm(searchSpace[0],total=searchSpace[1])
     result = []
-    for selectors_one_point in tqdm_searchSpace:
+    for i, selectors_one_point in enumerate(tqdm_searchSpace):
         sg = Conjuction(selectors_one_point)
         sg_vector = sg.covers(data)
         outcome_vector = target.covers(data)
-        print(len(sg_vector))
-        print(len(outcome_vector))
         quality = computeScore(sg_vector, outcome_vector)
         # result.append((quality,selectors_one_point))
-        print (result)
         add_if_required(result, sg, quality, 3)
+    print ("simple search finished")
     return result
 
 
@@ -121,4 +145,5 @@ def main():
     target=createTarget("outcome",True)
     selectors = createSelectors(data,["outcome"])
     simpleSearch(target, selectors, data)
+    print("end finished")
 
