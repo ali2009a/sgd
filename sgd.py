@@ -6,13 +6,29 @@ import numpy as np
 from heapq import heappush, heappop
 
 
+# def readData():
+#     features = pd.read_csv("data/features.csv")
+#     features = features.iloc[:,:-5]
+#     clinicalData  =pd.read_excel("data/ClinicalData.xlsx")
+#     features["outcome"] = clinicalData["Cardiotoxicity"]
+#     features=features.set_index("index")
+#     return features
+
+
 def readData():
-    features = pd.read_csv("data/features.csv")
-    features = features.iloc[:,:-5]
-    clinicalData  =pd.read_excel("data/ClinicalData.xlsx")
-    features["outcome"] = clinicalData["Cardiotoxicity"]
-    features=features.set_index("index")
-    return features
+    header=  list(range(1,101))
+    header2 = [str(x) for x in header]
+    features = pd.read_csv("data/X.csv", header=None , names=header2)
+    outcome = pd.read_csv("data/Y.csv", header=None, names=["outcome"])
+    result = pd.concat([features, outcome], axis=1, sort=False)
+    # features = features.iloc[:,:-5]
+    # clinicalData  =pd.read_excel("data/ClinicalData.xlsx")
+    # features["outcome"] = clinicalData["Cardiotoxicity"]
+    # features=features.set_index("index")
+    return result
+
+
+
 
 
 class EquitySelector():
@@ -70,7 +86,7 @@ def createSearchSpace(selectors, depth):
 
 class Conjuction:
     def __init__(self, selectors):
-        self.selectors=selectors
+        self.selectors = selectors
 
     def covers(self, data):
         # empty description ==> return a list of all '1's
@@ -88,12 +104,10 @@ class Conjuction:
         return repr(self) < repr(other)
 
 
-
-
-def add_if_required(result, sg, quality, result_set_size):
+def add_if_required(result, sg, quality, result_set_size, check_for_duplicates=False):
     # if quality > task.min_quality:
-    #     if check_for_duplicates and (quality, sg) in result:
-    #         return
+    # if check_for_duplicates and (quality, sg) in result:
+    #     return
     if len(result) < result_set_size:
         heappush(result, (quality, sg))
     elif quality > result[0][0]:
@@ -110,22 +124,28 @@ def computeScore(sg_vector, outcome_vector, measure):
         tab.loc[1]=0
 
 
-    n11 = tab.loc[1][1]
-    n10 = tab.loc[1][0]
-    n01 = tab.loc[0][1]
-    n00 = tab.loc[0][0]
+    TP= n11 = tab.loc[1][1]
+    FP= n10 = tab.loc[1][0]
+    FN= n01 = tab.loc[0][1]
+    TN= n00 = tab.loc[0][0]
+    N= tab.loc[0][0]+tab.loc[0][1]
+    P= tab.loc[1][0]+tab.loc[1][1]
+    F= tab.loc[0][0]+tab.loc[1][0]
+    T= tab.loc[0][1]+tab.loc[1][1]
 
+    e=1
     if measure=="accuracy":
         quality = (n11+n00)/n
     elif measure=="oddsRatio":
         quality = (n00*n11)/(n10*n01)
     elif measure=="colligation":
-        quality= ( n11*n00 - n10*n01 )/( n11*n00 + n10*n01 )
+        quality= ( n11*n00 - n10*n01 )/( n11*n00 + n10*n01 + e )
     elif measure=="goodman":
         quality = 1- ((min(n11,n10)+min(n00,n01))/(min(n01,n10)))
     elif measure=="f1":
         quality = (2*n11)/(n10+n01)
-
+    elif measure == "new":
+        quality = ((TP*TN)-(FP*FN))/(np.sqrt(T*F*P*N)+e)
     return quality
 
 def simpleSearch(target, selectors, data, measure):
@@ -138,12 +158,57 @@ def simpleSearch(target, selectors, data, measure):
     for i, selectors_one_point in enumerate(tqdm_searchSpace):
         sg = Conjuction(selectors_one_point)
         sg_vector = sg.covers(data)
-        outcome_vector = target.covers(data)
+        outcome_vector = target.covers (data)
         quality = computeScore(sg_vector, outcome_vector, measure)
         # result.append((quality,selectors_one_point))
         add_if_required(result, sg, quality, 10)
     print ("simple search finished")
     return result
+
+
+def beamSearch(target, selectors, data, measure, max_depth=2, beam_width=5, result_set_size=5):
+    beam = [(0, Conjuction([]))]
+    last_beam = None
+
+    depth = 0
+    while beam != last_beam and depth < max_depth:
+        last_beam = beam.copy()
+        print("last_beam size: {}, depth: {}".format(len(last_beam), depth))
+        for (_, last_sg) in last_beam:
+            if not getattr(last_sg, 'visited', False):
+                setattr(last_sg, 'visited', True)
+                for sel in tqdm(selectors):
+                    # create a clone
+                    new_selectors = list(last_sg.selectors)
+                    if sel not in new_selectors:
+                        new_selectors.append(sel)
+                        sg = Conjuction(new_selectors)
+                        sg_vector = sg.covers(data)
+                        outcome_vector = target.covers (data)
+                        quality = computeScore(sg_vector, outcome_vector, measure)
+                        add_if_required(beam, sg, quality, beam_width, check_for_duplicates=True)
+        depth += 1
+
+    result = beam[:result_set_size]
+    result.sort(key=lambda x: x[0], reverse=True)
+    return result
+
+
+# def main():
+#     data=readData()
+#     target=createTarget("outcome",True)
+#     selectors = createSelectors(data,["outcome"])
+#     with open("result.txt","w") as f:
+#         for measure in ["accuracy", "oddsRatio", "colligation", "goodman", "f1"]:
+#             f.write(measure)
+#             f.write("\n")
+#             result = simpleSearch(target, selectors, data, measure)
+#             for r in result:
+#                 f.write("\t"+str(r))
+#                 f.write("\n")
+#             f.write("\n")
+#     print("end finished")
+#     return result
 
 
 def main():
@@ -155,6 +220,22 @@ def main():
             f.write(measure)
             f.write("\n")
             result = simpleSearch(target, selectors, data, measure)
+            for r in result:
+                f.write("\t"+str(r))
+                f.write("\n")
+            f.write("\n")
+    print("end finished")
+    return result
+
+def main_beam():
+    data=readData()
+    target=createTarget("outcome",True)
+    selectors = createSelectors(data,["outcome"])
+    with open("result_beam.txt","w") as f:
+        for measure in ["colligation"]:
+            f.write(measure)
+            f.write("\n")
+            result = beamSearch(target, selectors, data, measure)
             for r in result:
                 f.write("\t"+str(r))
                 f.write("\n")
