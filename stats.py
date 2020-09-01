@@ -3,10 +3,11 @@ import numpy as np
 import scipy.sparse
 import pandas as pd
 import statsmodels.api as sm
+import statsmodels
 from tqdm import tqdm
 import scipy.stats as stats
 from numpy import genfromtxt
-
+import subprocess
 
 def computeFrequency(data, target):
 
@@ -117,7 +118,7 @@ def readData():
     dom = dom[indices]
     rec=  rec[indices]
     y=y[indices]
-    
+    clinicalData = clinicalData.iloc[indices]
 
     binarized_y=[]
     for i in y:
@@ -127,11 +128,20 @@ def readData():
             binarized_y.append(0)
     binarized_y = np.array(binarized_y)
 
-    clinicalData = clinicalData.iloc[indices]
-    clinicalData= clinicalData.reset_index()
-    cols=clinicalData.columns[ list(range(0,25))+[35]]
-    clinicalData=clinicalData.loc[:,cols]
+    clinicalData = binarize_clinicalData(clinicalData)
+
+    # clinicalData = clinicalData.drop(['index'], axis=1)
     return [dom, rec, binarized_y, clinicalData]
+
+def binarize_clinicalData(clinicalData):
+    clinicalData= clinicalData.reset_index()
+    cols=clinicalData.columns[ list(range(0,6)) + list(range(20,22)) +[ 36]]
+    clinicalData=clinicalData.loc[:,cols]
+    clinicalData["AgeTreatmentInitiation (years)"] = clinicalData["AgeTreatmentInitiation (years)"]>=8
+    clinicalData["CisplatinDose (mg/m2)"] = clinicalData["CisplatinDose (mg/m2)"]>380
+    clinicalData["CisplatinDuration (days)"] = clinicalData["CisplatinDuration (days)"] >120
+    return clinicalData
+
 
 
 def computeCorreltaionFeatures(features, y):
@@ -192,5 +202,150 @@ def mkdf():
 
     return result
 
+
+#for QED
+def mkdf2():
+    [dom, rec, y, clinicalData ] = readData()
+    features =  np.load("realData/snpsback_variants.npy")
+
+
+    # clinicalData = pd.read_excel("realData/ClinicalData.xlsx")
+
+    dom = pd.DataFrame(dom, columns=["dom_"+x for x in features])
+    rec = pd.DataFrame(rec, columns=["rec_"+x for x in features])
+
+    binarized_y = pd.DataFrame(y, columns=["binarized_y"]) 
+
+    result = pd.concat([ clinicalData, rec, dom, binarized_y], axis=1, sort=False)
+    result = result.drop(['index'], axis=1)
+    return result
+
+
+def getTreatmentGroups(df, indVariable):
+    vals  = np.array(df[indVariable])
+
+    controlIndexes = np.where(vals==0)[0]
+    treatmentIndexes = np.where(vals==1)[0]
+
+    return [controlIndexes, treatmentIndexes]
+
+def ComputeCostMatrix(df, treatmentGroups, indVariable):
+    controlIndexes = treatmentGroups[0]
+    treatmentIndexes = treatmentGroups[1]
+    weights_local = []
+
+    confounders = df.columns[1:7]
+    weights_local = np.ones((len(confounders)))
+    confDF = df[confounders]
+    numTreat = len(treatmentIndexes)
+    numControl = len(controlIndexes)
+    C = np.zeros(shape = (numTreat, numControl))
+    for i in (range(numTreat)):
+        for j in range(numControl):
+            C[i,j] = computeDistance(confDF.loc[treatmentIndexes[i]].values, confDF.loc[controlIndexes[j]].values,weights_local)
+
+    return C
+
+
+def computeDistance(row1,row2, weights_local):
+    row1 = row1.astype(int)
+    row2 = row2.astype(int)    
+    diff  = row1 - row2
+    diff = diff*weights_local
+    diff = diff[~np.isnan(diff)]
+    return np.linalg.norm(diff)/len(diff)
+
+
+def performMatching(C):
+
+    r,c = C.shape
+    with open('matrix.txt', 'w') as f:
+        f.write("{} {}\n".format(r,c))
+        for i in range(0,r):
+            for j in range(0,c):
+                f.write( "{} ".format(C[i][j]))
+            f.write("\n")
+
+    command = "hungarian/test"
+    run_cmd(command)
+    
+    costs = []
+    with open('matching.txt', 'r') as f:
+        indexes = []
+        for line in f:
+            words = line.rstrip('\n').split(',')
+            L = int(words[0])
+            R = int(words[1])
+            if R!= -1:
+                pair = (L,R)
+                indexes.append(pair)
+                costs.append(C[L,R])
+
+    costs = np.array(costs)
+    passedPairs = [pair for idx, pair in enumerate(indexes) if costs[idx]< 0.3 ]            
+    # m = Munkres()
+    # indexes = m.compute(C)
+    return passedPairs
+
+
+def run_cmd(cmd, working_directory=None):
+    if working_directory!= None:
+        try:
+            output = subprocess.check_output(cmd,shell=True,cwd=working_directory)
+            print ("output:"+output)
+        except:
+            print ("failed:"+cmd)
+            # pass
+    else:
+        try:
+            output = subprocess.check_output(cmd,shell=True)
+            print ((output))
+        except:
+            print ("failed:"+cmd)
+            # pass
+
+
+def computePValue_MCNmar(X,Y):
+    # X = np.array(X).astype(str)
+    # Y = 
+    X = pd.Categorical(X, categories=[0,1])
+    Y = pd.Categorical(Y, categories=[0,1])
+    tab = pd.crosstab(X,Y, dropna=False)
+    res= statsmodels.stats.contingency_tables.mcnemar(tab)
+    pVal = res.pvalue
+    return pVal
+
+
+def getTargetValues(df, treatmentGroups, indexes):
+    controlIndexes = treatmentGroups[0]
+    treatmentIndexes = treatmentGroups[1]
+    memtotT = [  df.loc[treatmentIndexes[i[0]]]["binarized_y"]  for i in indexes]
+    memtotC = [  df.loc[controlIndexes[i[1]]]["binarized_y"]  for i in indexes]
+    return [memtotC, memtotT]
+
+
+def QED():    
+    df = mkdf2()
+
+    features =  np.load("realData/snpsback_variants.npy")
+    dom_features = ["dom_"+x for x in features]
+    rec_features = ["rec_"+x for x in features]
+    indVariables = dom_features + rec_features
+
+    pVals = []
+    for  index, indVariable in enumerate(tqdm(indVariables[0:20])):
+            treatmentGroups = getTreatmentGroups(df,indVariable) #alternative
+            if len(treatmentGroups[0])==0 or  len(treatmentGroups[1])==0:
+                pVals.append("NA:NET")
+                continue 
+            C= ComputeCostMatrix(df, treatmentGroups, indVariable)
+            matchedPairs = performMatching(C)
+            if len(matchedPairs)==0:
+                pVals.append("NA:NEP")
+                continue             
+            targetValues = getTargetValues(df,treatmentGroups, matchedPairs)
+            pval = computePValue_MCNmar(targetValues[0], targetValues[1])
+            pVals.append(pval)
+    return (pVals)
 
 
