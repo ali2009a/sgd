@@ -8,7 +8,7 @@ from tqdm import tqdm
 import scipy.stats as stats
 from numpy import genfromtxt
 import subprocess
-
+import time
 def computeFrequency(data, target):
 
     freqs=[]
@@ -239,12 +239,31 @@ def ComputeCostMatrix(df, treatmentGroups, indVariable):
     confDF = df[confounders]
     numTreat = len(treatmentIndexes)
     numControl = len(controlIndexes)
+    winLen = len(confounders)
     C = np.zeros(shape = (numTreat, numControl))
-    for i in (range(numTreat)):
-        for j in range(numControl):
-            C[i,j] = computeDistance(confDF.loc[treatmentIndexes[i]].values, confDF.loc[controlIndexes[j]].values,weights_local)
 
-    return C
+
+    T = np.zeros(shape = (numTreat, winLen))
+    C = np.zeros(shape = (numControl, winLen))
+
+    for i in range(numTreat):
+        T[i,:] = confDF.loc[treatmentIndexes[i]].values
+    
+    for j in range(numControl):
+        C[j,:] = confDF.loc[controlIndexes[j]].values
+
+    T = T.reshape(T.shape[0], 1, T.shape[1])
+    # TL = TL.reshape(TL.shape[0], 1, TL.shape[1])
+    diff = np.abs(T-C)  
+    aggregatedCost =np.sum(diff,axis=2)
+    varCost = aggregatedCost / np.sum(weights_local)
+    return varCost
+
+    # for i in (range(numTreat)):
+    #     for j in range(numControl):
+    #         C[i,j] = computeDistance(confDF.loc[treatmentIndexes[i]].values, confDF.loc[controlIndexes[j]].values,weights_local)
+
+    # return C
 
 
 def computeDistance(row1,row2, weights_local):
@@ -319,8 +338,10 @@ def computePValue_MCNmar(X,Y):
 def getTargetValues(df, treatmentGroups, indexes):
     controlIndexes = treatmentGroups[0]
     treatmentIndexes = treatmentGroups[1]
-    memtotT = [  df.loc[treatmentIndexes[i[0]]]["binarized_y"]  for i in indexes]
-    memtotC = [  df.loc[controlIndexes[i[1]]]["binarized_y"]  for i in indexes]
+    T_indices = [  treatmentIndexes[i[0]]  for i in indexes]
+    memtotT = df.loc[T_indices]["binarized_y"]
+    C_indices = [  controlIndexes[i[1]]  for i in indexes]
+    memtotC = df.loc[C_indices]["binarized_y"]
     return [memtotC, memtotT]
 
 
@@ -333,7 +354,8 @@ def QED():
     indVariables = dom_features + rec_features
 
     pVals = []
-    for  index, indVariable in enumerate(tqdm(indVariables[0:20])):
+    for  index, indVariable in enumerate(tqdm(indVariables)):
+    # for index, indVariable in enumerate(["dom_1_rs35699260"]):
             treatmentGroups = getTreatmentGroups(df,indVariable) #alternative
             if len(treatmentGroups[0])==0 or  len(treatmentGroups[1])==0:
                 pVals.append("NA:NET")
@@ -344,7 +366,7 @@ def QED():
                 pVals.append("NA:NEP")
                 continue             
             targetValues = getTargetValues(df,treatmentGroups, matchedPairs)
-            pval = computePValue_MCNmar(targetValues[0], targetValues[1])
+            pval = computePValue_MCNmar(targetValues[0], targetValues[1])            
             pVals.append(pval)
     return (pVals)
 
