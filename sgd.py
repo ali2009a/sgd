@@ -27,11 +27,36 @@ from heapq import heappush, heappop
 #     # features=features.set_index("index")
 #     return result
 
+
+
+# def readData():
+#     data_root= "data3_toy"
+
+#     # header=  list(range(0,100))
+#     header=  list(range(0,4))
+#     header2 = [str(x) for x in header]
+#     features = pd.read_csv("{}/X.csv".format(data_root), header=None , names=header2)
+#     outcome = pd.read_csv("{}/Y.csv".format(data_root), header=None, names=["outcome"])
+#     result = pd.concat([features, outcome], axis=1, sort=False)
+
+#     feat_score= pd.read_csv("{}/S1.csv".format(data_root), header=None)
+#     feat_similarity= pd.read_csv("{}/S2.csv".format(data_root), header=None)
+#     # feat_similarity = 1-feat_dissimilarity
+#     feat_similarity = np.array(feat_similarity)
+#     # features = features.iloc[:,:-5]
+#     # clinicalData  =pd.read_excel("data/ClinicalData.xlsx")
+#     # features["outcome"] = clinicalData["Cardiotoxicity"]
+#     # features=features.set_index("index")
+#     X=result.iloc[:,:-1]
+#     Y=result.iloc[:,-1:]
+#     return [X, Y, feat_score, feat_similarity]
+
+
 def readData():
-    data_root= "data3_toy"
+    data_root= "toy_dec_1"
 
     # header=  list(range(0,100))
-    header=  list(range(0,4))
+    header=  list(range(0,100))
     header2 = [str(x) for x in header]
     features = pd.read_csv("{}/X.csv".format(data_root), header=None , names=header2)
     outcome = pd.read_csv("{}/Y.csv".format(data_root), header=None, names=["outcome"])
@@ -48,7 +73,6 @@ def readData():
     X=result.iloc[:,:-1]
     Y=result.iloc[:,-1:]
     return [X, Y, feat_score, feat_similarity]
-
 
 
 
@@ -92,7 +116,7 @@ def createSelectors(data, ignore=[]):
     sg_to_index = {}
     counter=0
     for attr_name in [x for x in data if x not in ignore]:
-        for val in pd.unique(data[attr_name]):
+        for val in  np.sort(pd.unique(data[attr_name])):
             selector = EquitySelector(attr_name, val)
             selectors.append(selector)
             original_features.append(int(attr_name))
@@ -137,12 +161,15 @@ def add_if_required(result, sg, quality, result_set_size, check_for_duplicates=F
     # if quality > task.min_quality:
     # if check_for_duplicates and (quality, sg) in result:
     #     return
+    
     if len(result) < result_set_size:
         heappush(result, (quality, sg))
     elif quality > result[0][0]:
+        print("added")
         heappop(result)
         heappush(result, (quality, sg))
-
+    else:
+        print("not added")
 
 def computeScore(sg_vector, outcome_vector, measure):
     n=len(sg_vector)
@@ -181,7 +208,7 @@ def computeQuality(X, Y, measure=""):
     X = X.astype(int)
     Y = Y.astype(int)
     tab = pd.crosstab(X,Y)
-    
+
     if not 1 in tab.index:       
         tab.loc[1]=0
     if not 0 in tab.index:       
@@ -196,6 +223,8 @@ def computeQuality(X, Y, measure=""):
     P= n1b= tab.loc[1][0]+tab.loc[1][1]
     F= nb0= tab.loc[0][0]+tab.loc[1][0]
     T= nb1=tab.loc[0][1]+tab.loc[1][1]
+    # print("{}*{} - {}*{}".format(n11,n00,n10,n01))
+    # print("{}*{} - {}*{}".format(n1b,n0b,nb1,nb0))
     quality= ( n11*n00 - n10*n01 )/np.sqrt( n1b*n0b * nb1*nb0)
     return np.abs(quality)
 
@@ -310,7 +339,7 @@ def pruneFeatures(X, Y, feat_score, ignore, threshold):
     
 
 def L1_greedy(V,target, X, Y, measure, beam_width):
-    to_be_pruned = pruneFeatures(X, Y, V, [], 0.4)
+    to_be_pruned = pruneFeatures(X, Y, V, [], 0)
     [selectors, original_features, sg_to_index] = createSelectors(X, to_be_pruned)    
     scores= np.zeros((len(selectors)))
     # beam = [(0, Conjuction([]))]
@@ -322,12 +351,13 @@ def L1_greedy(V,target, X, Y, measure, beam_width):
         quality = computeQuality(sg_vector, outcome_vector, measure)
         scores[index] = quality
         add_if_required(last_beam, sg, quality, beam_width, check_for_duplicates=True)
-    last_beam.sort(key=lambda x: x[0], reverse=True)
+    # last_beam.sort(key=lambda x: x[0], reverse=True)
     return [last_beam, scores, selectors, original_features, sg_to_index]
 
 
 
-def beamSearch_auxData(V, W, target, X,Y, measure, max_depth=2, beam_width=4, result_set_size=4):
+def beamSearch_auxData(V, W, target, X,Y, measure, max_depth=3, beam_width=20, result_set_size=20):
+    cost = []
     n_0=1
     last_beam = None
 
@@ -341,34 +371,55 @@ def beamSearch_auxData(V, W, target, X,Y, measure, max_depth=2, beam_width=4, re
 
     depth = 0
     while beam != last_beam and depth < max_depth:
+        print ("depth:{}".format(depth))
         last_beam = beam.copy()
         print("last_beam size: {}, depth: {}".format(len(last_beam), depth))
-        for i in range(beam_width):
-            (i_score, last_sg) = last_beam[i]
-            if not getattr(last_sg, 'visited', False):
-                setattr(last_sg, 'visited', True)
-                FHat = np.zeros(len(selectors))
-                for j in tqdm(range(len(selectors))):
-                    
-                    sel= selectors[j]                                                                                                                                            
-                    new_selectors = list(last_sg.selectors)
-                    sg = Conjuction(new_selectors)
-                    sg_vector = sg.covers(X)
-                    n = np.sum(sg_vector)
+        for u in range(10):
+            print ("------u:{}".format(u))
+            for i in range(beam_width-1, -1,-1):
+            # for i in [0]:
 
-                    if n>n_0 and sel not in new_selectors:
-                        FHat[j] = np.dot(new_W[j], Q+i_score)
-                    else:
-                        FHat[j] = 0
-                j= np.argmax(FHat)    
-                sg_vector = selectors[j].covers(X)
-                outcome_vector = target.covers (Y)
-                quality = computeQuality(sg_vector, outcome_vector, measure)
-                add_if_required(beam, sg, quality, beam_width, check_for_duplicates=True)
+                print("i : {}".format(i))
+                print ()
+                (i_score, last_sg) = last_beam[i]
+                if not getattr(last_sg, 'visited', False):
+                    setattr(last_sg, 'visited', True)
+                    FHat = np.zeros(len(selectors))
+                    print("beam:")
+                    print(beam)
+                    for j in tqdm(range(len(selectors))):
+                    # for j in [1]:    
+                        # print("j:{}".format(j))
+                        sel= selectors[j]                                                                                                                                            
+                        new_selectors = last_sg.selectors+[sel]
+                        sg = Conjuction(new_selectors)
+                        sg_vector = sg.covers(X)
+                        n = np.sum(sg_vector)
+
+                        if n>n_0 and sel not in last_sg.selectors:
+                            # print("new_W[j]")
+                            # print(new_W[j])
+                            # print((Q+i_score)/2)
+                            # print (i_score)
+
+                            FHat[j] = np.dot(new_W[j], (Q+i_score)/2)
+
+                        else:
+                            FHat[j] = 0
+                    # print ("FHat:")
+                    # print (FHat)
+                    j= np.argmax(FHat)  
+                    print ("selected j:{}, {}".format(j, selectors[j]))  
+                    sg_vector = sg.covers(X)
+                    outcome_vector = target.covers (Y)
+                    quality = computeQuality(sg_vector, outcome_vector, measure)
+                    print ("computed score:{}".format(quality))
+                    cost.append(sg)
+                    add_if_required(beam, sg, quality, beam_width, check_for_duplicates=True)
         depth += 1
     result = beam[:result_set_size]
     result.sort(key=lambda x: x[0], reverse=True)
-    return result
+    return [result , cost]
 
 
 def main_beam_auxData():
