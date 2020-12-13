@@ -83,6 +83,12 @@ class EquitySelector():
         self.attribute = attribute
         self.value = value
 
+    def __eq__(self, other):
+        return repr(self) == repr(other)
+
+    def __hash__(self):
+        return hash(repr(self))
+
     def covers(self, data):
         column_data = data[self.attribute].to_numpy()
         if pd.isnull(self.value):
@@ -338,21 +344,17 @@ def pruneFeatures(X, Y, feat_score, ignore, threshold):
 
 def L1_greedy(V,target, X, Y, measure, beam_width):
     computedScores={}
-    to_be_pruned = pruneFeatures(X, Y, V, [], 0)
+    to_be_pruned = pruneFeatures(X, Y, V, [], 0.3)
     [selectors, original_features, sg_to_index] = createSelectors(X, to_be_pruned)    
-    scores= np.zeros((len(selectors)))
-    # beam = [(0, Conjuction([]))]
     last_beam = [(0, Conjuction([]))]
     for index, sel in enumerate(tqdm(selectors)):
         sg = Conjuction([sel])
         sg_vector = sg.covers(X)
         outcome_vector = target.covers (Y)
         quality = computeQuality(sg_vector, outcome_vector, measure)
-        scores[index] = quality
         add_if_required(last_beam, sg, quality, beam_width, check_for_duplicates=True)
         computedScores[sg]=quality
-    # last_beam.sort(key=lambda x: x[0], reverse=True)
-    return [last_beam, scores, selectors, original_features, sg_to_index, computedScores]
+    return [last_beam, computedScores]
 
 
 
@@ -435,7 +437,9 @@ def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_widt
     depth = 0
 
     F= np.zeros(W.shape)
-    [beam, Q, selectors, original_features, sg_to_index, computedScores] = L1_greedy(V,target, X, Y, measure, beam_width)
+    [beam, computedScores] = L1_greedy(V,target, X, Y, measure, beam_width)
+    
+    [selectors, original_features, sg_to_index] = createSelectors(X, []) 
     new_W = createNewWeightMatrix(selectors, original_features, W)
 
     while beam != last_beam and depth < max_depth-1:
