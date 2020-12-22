@@ -169,23 +169,20 @@ class Conjuction:
         return repr(self) < repr(other)
 
 
-def add_if_required(result, sg, quality, result_set_size, check_for_duplicates=False):
-    # if quality > task.min_quality:
-    # print(sg)
+def add_if_required(result, sg, quality, result_set_size, check_for_duplicates=False):  
+    if check_for_duplicates and (quality, sg) in result:
+        print("duplicated found")
+        return
 
+    sg_set = convertSGtoSet(sg)
     for pair in result:
-        sg_pair = pair[1]
-        if sg_pair==sg:
-            print("duplicate found")
-            return         
-    # if check_for_duplicates and (quality, sg) in result:
-    #     print("duplicated found")
-    #     return
-    for sel in sg.selectors:
-        for pair in result:
-            sg_pair = pair[1]
-            if sel in sg_pair.selectors and quality < pair[0]:
-                return
+        beam_quality = pair[0]
+        sg_beam = pair[1]
+        sg_beam_set = convertSGtoSet(sg_beam)
+        subtract =  sg_beam_set - sg_set
+        if len(subtract)==0 and quality < beam_quality:
+            # print("Found a subset with better score! Not added")
+            return
 
     if len(result) < result_set_size:
         heappush(result, (quality, sg))
@@ -342,9 +339,9 @@ def pruneFeatures(X, Y, feat_score, ignore, threshold):
     return to_be_pruned    
     
 
-def L1_greedy(V,target, X, Y, measure, beam_width):
+def L1_greedy(V,target, X, Y, measure, beam_width, threshold):
     computedScores={}
-    to_be_pruned = pruneFeatures(X, Y, V, [], 0.3)
+    to_be_pruned = pruneFeatures(X, Y, V, [], threshold)
     [selectors, original_features, sg_to_index] = createSelectors(X, to_be_pruned)    
     last_beam = [(0, Conjuction([]))]
     for index, sel in enumerate(tqdm(selectors)):
@@ -368,29 +365,17 @@ def convertSGtoSet(sg):
     return res
 
 
-def initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index):
+def initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors):
     scoresSum=0
     for key , score in computedScores.items():
         scoresSum = scoresSum+score
     mean = scoresSum/len(computedScores)
     F[:,:] = mean
-    for score_key , score in computedScores.items():
-        for beam_key in sg_to_beamIndex:
-            score_key_set = convertSGtoSet(score_key)
-            beam_key_set = convertSGtoSet(beam_key)
-            intersection = score_key_set.intersection(beam_key_set)
-            subtract = beam_key_set - score_key_set
-            if len(subtract)==0 and len(intersection)>0 and len(intersection)<len(score_key_set):
-                extras = score_key_set - beam_key_set
-                for sel in extras:
-                    F[sg_to_beamIndex[beam_key], sg_to_index[sel]] = score 
-
-
     for beam_key in sg_to_beamIndex:
-        beam_key_set = convertSGtoSet(beam_key)
-        for sel in beam_key_set:
-            F[sg_to_beamIndex[beam_key], sg_to_index[sel]] = 0
-
+        for sel in selectors:
+            new_sg=Conjuction(beam_key.selectors + [sel])
+            if new_sg in computedScores:
+                F[sg_to_beamIndex[beam_key], sg_to_index[sel]] = score
 
 
 def createNewWeightMatrix(selectors, original_features, W):
@@ -400,11 +385,12 @@ def createNewWeightMatrix(selectors, original_features, W):
             new_W[i,j] = W[original_features[i], original_features[j]] 
     return new_W
 
-def initializeVisitedMatrix(last_beam, selectors):
-    visited ={}
-    for i, (i_score, last_sg) in enumerate(last_beam):
-        visited[last_sg] = np.zeros((len(selectors),len(selectors))) 
-        np.fill_diagonal(visited[last_sg],1)
+def initializeVisitedMatrix(last_beam, selectors, sg_to_beamIndex, sg_to_index):
+    visited= np.zeros((len(last_beam),len(selectors))) 
+    for beam_key in sg_to_beamIndex:
+        beam_key_set = convertSGtoSet(beam_key)
+        for sel in beam_key_set:
+            visited[sg_to_beamIndex[beam_key], sg_to_index[sel]] = 1
     return visited
 
 def create_sg_to_beamIndex(last_beam):
@@ -414,11 +400,11 @@ def create_sg_to_beamIndex(last_beam):
     return sg_to_beamIndex
 
 
-def findPair(i, F, new_W, visited, last_sg):
+def findPair(i, F, new_W, visited, last_sg, sg_to_beamIndex):
     j_prime = np.argmax(F[i,:])
-    score_vector=new_W[:, j_prime]
-    score_vector = score_vector * (1-visited[last_sg][:, j_prime]) 
-    j = np.argmax(score_vector)
+    weights_vector=new_W[:, j_prime]
+    weights_vector = weights_vector * (1-visited[sg_to_beamIndex[last_sg]]) 
+    j = np.argmax(weights_vector)
     return [j, j_prime]
 
 def create_sg_vector(selectors, last_sg, j, X):
@@ -429,16 +415,14 @@ def create_sg_vector(selectors, last_sg, j, X):
     return sg, sg_vector
 
 
-def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10):
-    cost = []
-    n_0=1
-    last_beam = None
-    evaluated={}        
+def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0.3, min_support=1):
+    last_beam = None     
     depth = 0
-
+    u=70
+    attemps_threshold=1000
     F= np.zeros(W.shape)
-    [beam, computedScores] = L1_greedy(V,target, X, Y, measure, beam_width)
-    
+    [beam, computedScores] = L1_greedy(V,target, X, Y, measure, beam_width, threshold)
+    print(beam)
     [selectors, original_features, sg_to_index] = createSelectors(X, []) 
     new_W = createNewWeightMatrix(selectors, original_features, W)
 
@@ -446,28 +430,36 @@ def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_widt
         print("depth:{}".format(depth+2))
         last_beam = beam.copy()
         F= np.zeros((beam_width,len(selectors)))
-        visited = initializeVisitedMatrix(last_beam, selectors)
         sg_to_beamIndex = create_sg_to_beamIndex(last_beam)
-        initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index)
+        visited = initializeVisitedMatrix(last_beam, selectors, sg_to_beamIndex, sg_to_index)
+        initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors)
         for i in range(beam_width-1, -1,-1):
+            print("expanding {}".format(last_beam[i][1]))
             (i_score, last_sg) = last_beam[i]
             if not getattr(last_sg, 'visited', False):
                 setattr(last_sg, 'visited', True)
-                for u in range(70):
-                    j, j_prime = findPair(i, F, new_W, visited, last_sg)
+                pair_count=0
+                attemps=0
+                while pair_count<u and attemps<attemps_threshold:
+                    attemps=attemps+1
+                    j, j_prime = findPair(i, F, new_W, visited, last_sg, sg_to_beamIndex)
                     sg, sg_vector = create_sg_vector(selectors, last_sg, j, X)
+                    n = np.sum(sg_vector)
+                    if n<min_support: 
+                        visited[i, j]=1                     
+                        continue
                     outcome_vector = target.covers(Y)           
                     quality = computeQuality(sg_vector, outcome_vector, measure)
                     F[i,j] = quality
-                    visited[last_sg][j_prime, j]=1
-                    visited[last_sg][j, j_prime]=1
-                    cost.append(sg)
+                    visited[i, j]=1
                     add_if_required(beam, sg, quality, beam_width, check_for_duplicates=True)
                     computedScores[sg] = quality
+                    pair_count= pair_count+1
+
         depth += 1
     result = beam[:result_set_size]
     result.sort(key=lambda x: x[0], reverse=True)
-    return [result , cost, evaluated]
+    return [result , computedScores]
 
 
 
@@ -497,7 +489,7 @@ def main_beam_auxData_greedy():
         for measure in ["colligation"]:
             f.write(measure)
             f.write("\n")
-            result = beamSearch_auxData_greedy_multiLevel(V,W,target, X, Y, measure)
+            result = beamSearch_auxData_greedy(V,W,target, X, Y, measure)
             for r in result:
                 f.write("\t"+str(r))
                 f.write("\n")
@@ -514,9 +506,6 @@ def printResult(res):
     for pair in res[0]:
         print("{}, {}".format(pair[1], pair[0]))
 
- # True Causes = (82), (90+13), (89+61), (10+27+51)       
-
-
 def test(selectors_input):
     [X, Y, V, W] = readData()
     target = createTarget("outcome",True)
@@ -527,7 +516,6 @@ def test(selectors_input):
     outcome_vector = target.covers (Y)
     quality = computeQuality(sg_vector, outcome_vector, "")
     print (quality)
-
 
 
 # X1 X2 Rank Score 
