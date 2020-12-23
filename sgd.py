@@ -432,6 +432,10 @@ def create_sg_vector(selectors, last_sg, j, X):
     sg_vector = sg.covers(X)
     return sg, sg_vector
 
+def printHistory(history, sg):
+    for pair in history[sg]:
+        print("{}               {}".format(pair[0], pair[1]))
+
 
 def track_history(history, sg, sel):
     if sg in history:
