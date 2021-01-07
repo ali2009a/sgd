@@ -4,8 +4,10 @@ from math import factorial
 from tqdm import tqdm
 import numpy as np
 from heapq import heappush, heappop
-
-
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+import random
 # def readData():
 #     features = pd.read_csv("data/features.csv")
 #     features = features.iloc[:,:-5]
@@ -394,6 +396,22 @@ def updateScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors
                 visited[sg_to_beamIndex[beam_key], sg_to_index[sel]] = 1
 
 
+def printScoreMatrixStats(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited):
+    soi_lhs = Conjuction([EquitySelector("814",1)])
+    computed_scores_count = 0
+    # for beam_key in [soi_lhs]:
+    #     for sel in selectors:
+    #         new_sg=Conjuction(beam_key.selectors + [sel])
+    #         if new_sg in computedScores:
+    #             computed_scores_count= computed_scores_count+1
+    
+    lhs_index = sg_to_beamIndex[soi_lhs]
+    for i in range(len(selectors)):
+        if visited[lhs_index, i]>0:
+            computed_scores_count = computed_scores_count+1
+    print ("computed scores count: {}".format(computed_scores_count))
+                
+
 
 def createNewWeightMatrix(selectors, original_features, W):
     print("create new weight matrix...")
@@ -425,6 +443,68 @@ def findPair(i, F, new_W, visited, last_sg, sg_to_beamIndex):
     j = np.argmax(weights_vector)
     return [j, j_prime]
 
+def findPair_adaptive(i, F, new_W, visited, last_sg, sg_to_beamIndex, computedScores, selectors):
+    probs = np.zeros(len(selectors))
+    for j in range(len(selectors)):
+        if visited[i,j]:
+            probs[j]=0
+        else:
+            probs[j] = computeProbability(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex)
+    # print("max: {}".format(np.max(probs)))
+    # print (np.histogram(probs))
+    np.save("probs.npy",probs)
+    t=probs[probs.argsort()[-5:][::-1][-1]]
+    probs[probs<t]=0
+    [j] = random.choices(population = list(range(len(selectors))), weights = probs, k=1)
+    return j
+
+def findPair_adaptive_efficient(i, F, new_W, visited, last_sg, sg_to_beamIndex, sg_to_index, computedScores, selectors, score_info):
+    probs = np.zeros(len(selectors))
+    for j in range(len(selectors)):
+        if visited[i,j]:
+            probs[j]=0
+        else:
+            probs[j] = computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex, sg_to_index, score_info)
+    t=probs[probs.argsort()[-5:][::-1][-1]]
+    probs[probs<t]=0
+    [j] = random.choices(population = list(range(len(selectors))), weights = probs, k=1)
+    return j
+
+
+def computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex, sg_to_index, score_info):
+    sg = Conjuction([selectors[j]])
+    if sg in computedScores:
+        global_prob = computedScores[sg]
+    else:
+        global_prob = 0
+
+    if "last_sg_computed" in score_info:
+        last_sel_added, sg_score =  score_info["last_sg_computed"]
+        new_score = sg_score * new_W[sg_to_index[last_sel_added],j]
+        if new_score > score_info["best_so_far"][j]:
+            score_info["best_so_far"][j] = new_score
+        local_prob = score_info["best_so_far"][j]
+    else:
+        local_prob = 0        
+    final_prob = global_prob + 2*local_prob
+    return final_prob
+
+def computeProbability(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex):
+    sg = Conjuction([selectors[j]])
+    if sg in computedScores:
+        global_prob = computedScores[sg]
+    else:
+        global_prob = 0
+    scores = np.zeros(len(selectors))
+    for k in range(len(selectors)):
+        scores[j] = F[i,k] * new_W[k,j]
+    local_prob  = np.max(scores)
+    if j == 1809:
+        print("for {}".format(selectors[j]))
+        print ("global_prob : {}, local_prob: {}".format(global_prob, local_prob))
+    final_prob = global_prob + 2*local_prob
+    return final_prob
+
 def create_sg_vector(selectors, last_sg, j, X):
     sel= selectors[j]                                                                                                                                            
     new_selectors = last_sg.selectors+[sel]
@@ -443,10 +523,26 @@ def track_history(history, sg, sel):
     else:
         history[sg] = [sel]
 
+def getPath(history, sg, sg_to_index):
+    indices = []
+    for pair in history[sg]:
+        j_prime=pair[0]
+        index = sg_to_index[j_prime]
+        indices.append(index)
+    return removeDups(indices)
+
+def removeDups(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]    
+
+
 def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0.3, min_support=1, u=70):
+    tempData = [] #debug
+    selectors_vals= []
     last_beam = None     
     depth = 0
-    attemps_threshold=1000
+    attemps_threshold=2*u
     F= np.zeros(W.shape)
     [beam, computedScores] = L1_greedy(V,target, X, Y, measure, beam_width, threshold)
     print(beam)
@@ -454,6 +550,7 @@ def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_widt
     new_W = createNewWeightMatrix(selectors, original_features, W)
 
     history ={}
+
 
     while beam != last_beam and depth < max_depth-1:
         print("depth:{}".format(depth+2))
@@ -464,7 +561,24 @@ def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_widt
         initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
         for i in range(beam_width-1, -1,-1):
             print("expanding {}".format(last_beam[i][1]))
+            # printScoreMatrixStats(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
             (i_score, last_sg) = last_beam[i]
+##################################
+            soi = Conjuction([EquitySelector("814",1)])
+            if not (soi == last_sg):
+                print("not soi, skipped")
+                continue
+            print("calculating stats...")    
+            for j, sel in enumerate(selectors):
+                sg, sg_vector = create_sg_vector(selectors, last_sg, j, X)
+                outcome_vector = target.covers(Y)
+                quality = computeQuality(sg_vector, outcome_vector, measure)
+
+                sel_vector = sel.covers(X)
+                selectors_vals.append(sel_vector)
+                tempData.append(quality)
+
+#############################
             if not getattr(last_sg, 'visited', False):
                 setattr(last_sg, 'visited', True)
                 pair_count=0
@@ -489,8 +603,135 @@ def beamSearch_auxData_greedy(V, W, target, X,Y, measure, max_depth=2, beam_widt
         depth += 1
     result = beam[:result_set_size]
     result.sort(key=lambda x: x[0], reverse=True)
-    return [result , computedScores, history]
+    return [result , computedScores, history, tempData, selectors_vals]
 
+
+def beamSearch_auxData_adaptive_naive(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0.3, min_support=1, u=70):
+    tempData = [] #debug
+    selectors_vals= []
+    last_beam = None     
+    depth = 0
+    attemps_threshold=2*u
+    F= np.zeros(W.shape)
+    [beam, computedScores] = L1_greedy(V,target, X, Y, measure, beam_width, threshold)
+    print(beam)
+    [selectors, original_features, sg_to_index] = createSelectors(X, []) 
+    new_W = createNewWeightMatrix(selectors, original_features, W)
+
+    history ={}
+
+
+    while beam != last_beam and depth < max_depth-1:
+        print("depth:{}".format(depth+2))
+        last_beam = beam.copy()
+        F= np.zeros((beam_width,len(selectors)))
+        sg_to_beamIndex = create_sg_to_beamIndex(last_beam)
+        visited = initializeVisitedMatrix(last_beam, selectors, sg_to_beamIndex, sg_to_index)
+        initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
+        for i in range(beam_width-1, -1,-1):
+            print("expanding {}".format(last_beam[i][1]))
+            # printScoreMatrixStats(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
+            (i_score, last_sg) = last_beam[i]   
+##################################
+            soi = Conjuction([EquitySelector("814",1)])
+            if not (soi == last_sg):
+                print("not soi, skipped")
+                continue
+            print("calculating stats...")    
+            for j, sel in enumerate(selectors):
+                sg, sg_vector = create_sg_vector(selectors, last_sg, j, X)
+                outcome_vector = target.covers(Y)
+                quality = computeQuality(sg_vector, outcome_vector, measure)
+
+                sel_vector = sel.covers(X)
+                selectors_vals.append(sel_vector)
+                tempData.append(quality)                
+#############################            
+            if not getattr(last_sg, 'visited', False):
+                setattr(last_sg, 'visited', True)
+                pair_count=0
+                attemps=0
+                while pair_count<u and attemps<attemps_threshold:
+                    print(pair_count)
+                    attemps=attemps+1
+                    j = findPair_adaptive(i, F, new_W, visited, last_sg, sg_to_beamIndex, computedScores, selectors)
+                    sg, sg_vector = create_sg_vector(selectors, last_sg, j, X)
+                    print(selectors[j])
+                    n = np.sum(sg_vector)
+                    if n<min_support: 
+                        visited[i, j]=1                     
+                        continue
+                    outcome_vector = target.covers(Y)           
+                    quality = computeQuality(sg_vector, outcome_vector, measure)
+                    F[i,j] = quality
+                    visited[i, j]=1
+                    track_history(history, last_sg, (selectors[j],selectors[0])) # j_prime replaced with 0
+                    add_if_required(beam, sg, quality, beam_width, check_for_duplicates=True)
+                    computedScores[sg] = quality
+                    pair_count= pair_count+1
+            updateScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
+        depth += 1
+    result = beam[:result_set_size]
+    result.sort(key=lambda x: x[0], reverse=True)
+    return [result , computedScores, history, tempData, selectors_vals]
+
+def init_score_info(score_info, selectors):
+    score_info["best_so_far"] = np.zeros(len(selectors))
+
+def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0.3, min_support=1, u=70):
+    tempData = [] #debug
+    selectors_vals= []
+    last_beam = None     
+    depth = 0
+    attemps_threshold=2*u
+    F= np.zeros(W.shape)
+    [beam, computedScores] = L1_greedy(V,target, X, Y, measure, beam_width, threshold)
+    print(beam)
+    [selectors, original_features, sg_to_index] = createSelectors(X, []) 
+    new_W = createNewWeightMatrix(selectors, original_features, W)
+
+    history ={}
+
+
+    while beam != last_beam and depth < max_depth-1:
+        print("depth:{}".format(depth+2))
+        last_beam = beam.copy()
+        F= np.zeros((beam_width,len(selectors)))
+        sg_to_beamIndex = create_sg_to_beamIndex(last_beam)
+        visited = initializeVisitedMatrix(last_beam, selectors, sg_to_beamIndex, sg_to_index)
+        initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
+        for i in range(beam_width-1, -1,-1):
+            print("expanding {}".format(last_beam[i][1]))
+            # printScoreMatrixStats(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
+            (i_score, last_sg) = last_beam[i]             
+            if not getattr(last_sg, 'visited', False):
+                setattr(last_sg, 'visited', True)
+                pair_count=0
+                attemps=0
+                score_info={}
+                init_score_info(score_info, selectors)
+                while pair_count<u and attemps<attemps_threshold:
+                    attemps=attemps+1
+                    j = findPair_adaptive_efficient(i, F, new_W, visited, last_sg, sg_to_beamIndex, sg_to_index, computedScores, selectors, score_info)
+                    sg, sg_vector = create_sg_vector(selectors, last_sg, j, X)
+                    n = np.sum(sg_vector)
+                    if n<min_support: 
+                        visited[i, j]=1                     
+                        continue
+                    outcome_vector = target.covers(Y)           
+                    quality = computeQuality(sg_vector, outcome_vector, measure)
+                    F[i,j] = quality
+                    score_info["last_sg_computed"] = (selectors[j], quality)
+                    visited[i, j]=1
+                    track_history(history, last_sg, (selectors[j],selectors[0])) # j_prime replaced with 0
+                    add_if_required(beam, sg, quality, beam_width, check_for_duplicates=True)
+                    computedScores[sg] = quality
+                    pair_count= pair_count+1
+            updateScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
+        depth += 1
+    result = beam[:result_set_size]
+    result.sort(key=lambda x: x[0], reverse=True)
+    return [result , computedScores, history, tempData, selectors_vals]
 
 
 def main_beam_auxData():
@@ -519,7 +760,7 @@ def main_beam_auxData_greedy():
         for measure in ["colligation"]:
             f.write(measure)
             f.write("\n")
-            result = beamSearch_auxData_greedy(V,W,target, X, Y, measure, max_depth=2, beam_width=100, result_set_size=100,threshold=0.54)
+            result = beamSearch_auxData_greedy(V,W,target, X, Y, "", max_depth=2, beam_width=10, result_set_size=10,threshold=0.54, min_support=1, u=70)
             for r in result:
                 f.write("\t"+str(r))
                 f.write("\n")
@@ -569,3 +810,60 @@ def get_score_sg(selectors_input, X, Y, V, W):
 # 48 48 0.000 0.659 
 # 39 58 0.008 0.299 
 # 44 66 0.002 0.365
+
+
+def draw_PCA(d, s, X, path):
+    np.random.seed(1)
+    x = StandardScaler().fit_transform(d)
+    pca = PCA(n_components=2)
+    principalComponents = pca.fit_transform(x)
+    principalDf = pd.DataFrame(data = principalComponents
+                 , columns = ['pc1', 'pc2'])
+    finalDf = pd.concat([principalDf, pd.DataFrame(s, columns=["target"])], axis = 1)
+    # finalDf["pc1"] = finalDf["pc1"].abs()
+    # finalDf["pc2"] = finalDf["pc2"].abs() 
+    [selectors, original_features, sg_to_index] = createSelectors(X, []) 
+
+    c = ['gray']* len(s)
+    for i in path[:20]:
+        c[i]='r'
+
+    soi2 = Conjuction([EquitySelector("904",1)])
+    soi3 = Conjuction([EquitySelector("904",0)])
+    
+    c[sg_to_index[soi2]] = 'green'
+    c[sg_to_index[soi3]] = 'green'
+
+
+
+
+    fig = plt.figure(figsize = (8,8))
+    ax = fig.add_subplot(1,1,1) 
+    ax.set_xlabel('Principal Component 1', fontsize = 15)
+    ax.set_ylabel('Principal Component 2', fontsize = 15)
+    ax.set_title('2 component PCA', fontsize = 20)
+    ax.scatter(finalDf.loc[:, 'pc1']
+               , finalDf.loc[:, 'pc2']
+               , c = c
+               # , s= 20)
+               , s = ((s*10)**3))
+
+
+    for i, selector_id in enumerate(path[:-1]):
+        print("drew arrow")
+        p1_x=finalDf.loc[path[i], 'pc1']
+        p1_y=finalDf.loc[path[i], 'pc2']
+        ax.annotate(i, (p1_x, p1_y))
+
+        p2_x=finalDf.loc[path[i+1], 'pc1']
+        p2_y=finalDf.loc[path[i+1], 'pc2']
+        ax.annotate(i, (p1_x, p1_y))
+
+        plt.arrow(p1_x,p1_y, p2_x - p1_x, p2_y - p1_y, 
+         shape='full', color='b', lw= 1, length_includes_head=True, 
+         zorder=0, head_length=0.1, head_width=0.2)
+    plt.rcParams.update({'font.size': 20})
+
+    # ax.legend(targets)
+    ax.grid()
+    plt.show()
