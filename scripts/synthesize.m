@@ -67,16 +67,16 @@ S2(S2>1)=1; S2(S2<0)=0; S2 = tril(S2,-1)+tril(S2,-1)';
 %% Export
 disp(['Prevalences Y: %' num2str(100*nnz(y)/numel(y)) ...
     ', X: %' num2str(100*nnz(V)/numel(V))])
-x = input('Export to CSV? [1/0]');
-
+%x = input('Export to CSV? [1/0]');
+x=1
 mkdir(output_dir)
 if x
     csvwrite('output/param_n_125/W.csv',S2)
-    csvwrite(output_dir+'W.csv',S2); 
-    csvwrite(output_dir+'V.csv',S1);
-    csvwrite(output_dir+'Y.csv',y); 
-    csvwrite(output_dir+'X.csv',X); 
-    csvwrite(output_dir+'true_causes.csv',v)
+    csvwrite(fullfile(output_dir,'W.csv'),S2); 
+    csvwrite(fullfile(output_dir,'V.csv'),S1);
+    csvwrite(fullfile(output_dir,'Y.csv'),y); 
+    csvwrite(fullfile(output_dir,'X.csv'),X); 
+    csvwrite(fullfile(output_dir,'true_causes.csv'),v)
 end
 
 end
