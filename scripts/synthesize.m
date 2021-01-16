@@ -11,6 +11,7 @@ function  synthesize(m,n,l1,l2,l3,p,z,q,Sp,f, output_dir)
 %sp = 3/4;% distribution mean of 1D Prior Score
 %f = 28; % number of functions used
 
+disp(z)
 %% Data Generation
 X = rand(n,m); X = (X>1-p); y = zeros(n,1); % Features
 v = datasample(1:m,1*l1+2*l2,'Replace',false); V = -ones(n,l1+l2); % Cause
@@ -25,13 +26,12 @@ x = rand(n,1); x = (x>1-z); y = y&x; % Confounders
 x = datasample(1:n,round(n*q),'Replace',false); y(x)=1-y(x); % Noise
 S1 = 0.1*randn(1,m)+0.5; S1(S1>1)=1; S1(S1<0)=0; S1(v) = Sp; % 1D Prior
 S2 = abs(corr(X)); % 2D Similarity
-disp([num2str(l1) ' single & ' num2str(l2) ' pair causes: '])
-disp(v)
+%disp([num2str(l1) ' single & ' num2str(l2) ' pair causes: '])
+%disp(v)
 %x = input('Export to CSV? [1/0]');
-x=1
+x=1;
 mkdir(output_dir)
 if x
-    csvwrite('output/param_n_125/W.csv',S2)
     csvwrite(fullfile(output_dir,'W.csv'),S2); 
     csvwrite(fullfile(output_dir,'V.csv'),S1);
     csvwrite(fullfile(output_dir,'Y.csv'),y); 
