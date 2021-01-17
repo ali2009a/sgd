@@ -11,6 +11,7 @@ import random
 import glob
 import os
 import pickle
+import argparse
 # def readData():
 #     features = pd.read_csv("data/features.csv")
 #     features = features.iloc[:,:-5]
@@ -788,14 +789,15 @@ def main_beam_auxData():
 
 def getDataPaths(path):
     dirs= []
-    for subject_folder in glob.glob(os.path.join(path, "*","*")):
+    for subject_folder in glob.glob(os.path.join(path, "*", "*", "*")):
         dirs.append(subject_folder)
     return dirs
+
 def getOutputPaths(output_root, data_paths):
     dirs = []
     for directory in data_paths:
         tokens = directory.split("/")
-        target_path = os.path.join(output_root, tokens[-2], tokens[-1])
+        target_path = os.path.join(output_root, tokens[-3], tokens[-2], tokens[-1])
         dirs.append(target_path)
     return dirs
 
@@ -862,9 +864,11 @@ if __name__ == "__main__":
     parser.add_argument("output_path", help="ioutput path")
     args = parser.parse_args()
     if args.model == "data_params":
+        print("data_params....")
         main_data_params(input_root=args.input_path, output_root=args.output_path)
     else:
-        main_model_params(default_input_root=sgd.input_path, output_root=sgd.output_path)
+        print("model_params...")
+        main_model_params(default_input_root=args.input_path, output_root=args.output_path)
 
 
 

@@ -1,6 +1,6 @@
-trial_num=5
+trial_num=100
 
-m_active = 0;% number of features
+m_active = 1;% number of features
 n_active = 1;% number of samples
 l1_active = 1;    % number of singular causes
 l2_active = 1;    % number of pair causes
@@ -10,7 +10,8 @@ q_active = 1;% rate of noise
 sp_active = 1;% distribution mean of 1D Prior Score
 
 
-root_directory = "./sim_data"
+
+root_directory = "/home/aliarab/scratch/sgd/sim_data/data_params"
 
 if n_active
     fprintf("running:\n")
@@ -47,7 +48,7 @@ if m_active
     q = 0.05;% rate of noise
     sp = 3/4;% distribution mean of 1D Prior Score
     f = 28; % number of functions used
-    m_params=[2500 5000 10000 ]
+    m_params=[2500 5000]
     params=m_params
     for i = 1: length(m_params)
         for trial=1:trial_num
