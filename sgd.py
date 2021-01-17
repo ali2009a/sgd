@@ -8,6 +8,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import random
+import glob
+import os
+import pickle
 # def readData():
 #     features = pd.read_csv("data/features.csv")
 #     features = features.iloc[:,:-5]
@@ -60,7 +63,42 @@ def getNumberOfFeatuers(data_root):
 
 def readData():
     print("reading data...")
-    data_root= "sim_data_dec22"
+    data_root= "sim_data_dec22/3"
+    features_num = getNumberOfFeatuers(data_root)
+    # header=  list(range(0,100))
+    header=  list(range(0,features_num))
+    header2 = [str(x) for x in header]
+    features = pd.read_csv("{}/X.csv".format(data_root), header=None , names=header2)
+    outcome = pd.read_csv("{}/Y.csv".format(data_root), header=None, names=["outcome"])
+    result = pd.concat([features, outcome], axis=1, sort=False)
+
+    feat_score= pd.read_csv("{}/V.csv".format(data_root), header=None)
+    feat_similarity= pd.read_csv("{}/W.csv".format(data_root), header=None)
+    # feat_similarity = 1-feat_dissimilarity
+    feat_similarity = np.array(feat_similarity)
+    # features = features.iloc[:,:-5]
+    # clinicalData  =pd.read_excel("data/ClinicalData.xlsx")
+    # features["outcome"] = clinicalData["Cardiotoxicity"]
+    # features=features.set_index("index")
+    X=result.iloc[:,:-1]
+    Y=result.iloc[:,-1:]
+    return [X, Y, feat_score, feat_similarity]
+
+
+# def readTrueCases(path):
+    
+#     with open(path, "r") as f:
+#         line = f.readline()
+#         tokens  = line.split(",")
+#     selectors = []
+#     for token in tokens:
+#         sel = sgd.EquitySelector("814",1)
+#     soi = sgd.Conjuction([sgd.EquitySelector("814",1)])
+
+
+def readData_sim(path):
+    print("reading data...")
+    data_root= path
     features_num = getNumberOfFeatuers(data_root)
     # header=  list(range(0,100))
     header=  list(range(0,features_num))
@@ -458,20 +496,20 @@ def findPair_adaptive(i, F, new_W, visited, last_sg, sg_to_beamIndex, computedSc
     [j] = random.choices(population = list(range(len(selectors))), weights = probs, k=1)
     return j
 
-def findPair_adaptive_efficient(i, F, new_W, visited, last_sg, sg_to_beamIndex, sg_to_index, computedScores, selectors, score_info):
+def findPair_adaptive_efficient(i, F, new_W, visited, last_sg, sg_to_beamIndex, sg_to_index, computedScores, selectors, score_info, weight):
     probs = np.zeros(len(selectors))
     for j in range(len(selectors)):
         if visited[i,j]:
             probs[j]=0
         else:
-            probs[j] = computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex, sg_to_index, score_info)
+            probs[j] = computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex, sg_to_index, score_info, weight)
     t=probs[probs.argsort()[-5:][::-1][-1]]
     probs[probs<t]=0
     [j] = random.choices(population = list(range(len(selectors))), weights = probs, k=1)
     return j
 
 
-def computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex, sg_to_index, score_info):
+def computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex, sg_to_index, score_info, weight):
     sg = Conjuction([selectors[j]])
     if sg in computedScores:
         global_prob = computedScores[sg]
@@ -486,7 +524,7 @@ def computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_t
         local_prob = score_info["best_so_far"][j]
     else:
         local_prob = 0        
-    final_prob = global_prob + 2*local_prob
+    final_prob = global_prob + weight*local_prob
     return final_prob
 
 def computeProbability(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex):
@@ -678,7 +716,7 @@ def beamSearch_auxData_adaptive_naive(V, W, target, X,Y, measure, max_depth=2, b
 def init_score_info(score_info, selectors):
     score_info["best_so_far"] = np.zeros(len(selectors))
 
-def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0.3, min_support=1, u=70):
+def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0.3, min_support=1, u=70, weight=2):
     tempData = [] #debug
     selectors_vals= []
     last_beam = None     
@@ -712,7 +750,7 @@ def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=
                 init_score_info(score_info, selectors)
                 while pair_count<u and attemps<attemps_threshold:
                     attemps=attemps+1
-                    j = findPair_adaptive_efficient(i, F, new_W, visited, last_sg, sg_to_beamIndex, sg_to_index, computedScores, selectors, score_info)
+                    j = findPair_adaptive_efficient(i, F, new_W, visited, last_sg, sg_to_beamIndex, sg_to_index, computedScores, selectors, score_info, weight)
                     sg, sg_vector = create_sg_vector(selectors, last_sg, j, X)
                     n = np.sum(sg_vector)
                     if n<min_support: 
@@ -749,6 +787,39 @@ def main_beam_auxData():
                 f.write("\n")
             f.write("\n")
     print("end finished")
+    return result
+
+
+def getDataPaths(path):
+    dirs= []
+    for subject_folder in glob.glob(os.path.join(path, "*","*")):
+        dirs.append(subject_folder)
+    return dirs
+def getOutputPaths(output_root, data_paths):
+    dirs = []
+    for directory in data_paths:
+        tokens = directory.split("/")
+        target_path = os.path.join(output_root, tokens[-2], tokens[-1])
+        dirs.append(target_path)
+    return dirs
+
+def main_beamSearch_auxData_adaptive_efficient(input_root="scripts/sim_data/output", output_root="scripts/sim_data/result/"):
+    # output_root="scripts/sim_data/result/"
+    input_paths = getDataPaths(input_root)
+    output_paths  = getOutputPaths(output_root, input_paths)
+    target = createTarget("outcome",True)
+    for i  in range(len(input_paths[:2])):
+        input_path = input_paths[i]
+        output_path = output_paths[i]
+        print (input_path)
+        print (output_path)
+        [X, Y, V, W] = readData_sim(input_path)    
+        result = beamSearch_auxData_adaptive_efficient(V,W,target, X, Y, "", max_depth=2, beam_width=5, result_set_size=5, threshold=0, u=100, weight=2, min_support=5)
+        output_file_path = os.path.join(output_path, "res.pkl")
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        with open(output_file_path, "wb") as f:
+            pickle.dump(result[0], f)
     return result
 
 def main_beam_auxData_greedy():
