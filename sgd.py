@@ -857,21 +857,6 @@ def main_model_params(default_input_root="scripts/sim_data/output/param_p_0.25/1
 
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("model", help="model")
-    parser.add_argument("input_path", help="input path")
-    parser.add_argument("output_path", help="ioutput path")
-    args = parser.parse_args()
-    if args.model == "data_params":
-        print("data_params....")
-        main_data_params(input_root=args.input_path, output_root=args.output_path)
-    else:
-        print("model_params...")
-        main_model_params(default_input_root=args.input_path, output_root=args.output_path)
-
-
-
 result_global=None
 def run_function(param_name,param_values, trial_num, default_input_root, output_root):
     print("parameter: {}".format(param_name))
@@ -1010,3 +995,18 @@ def draw_PCA(d, s, X, path):
     # ax.legend(targets)
     ax.grid()
     plt.show()
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("model", help="model")
+    parser.add_argument("input_path", help="input path")
+    parser.add_argument("output_path", help="ioutput path")
+    args = parser.parse_args()
+    if args.model == "data_params":
+        print("data_params....")
+        main_data_params(input_root=args.input_path, output_root=args.output_path)
+    else:
+        print("model_params...")
+        main_model_params(default_input_root=args.input_path, output_root=args.output_path)
