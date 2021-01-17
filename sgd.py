@@ -716,7 +716,7 @@ def beamSearch_auxData_adaptive_naive(V, W, target, X,Y, measure, max_depth=2, b
 def init_score_info(score_info, selectors):
     score_info["best_so_far"] = np.zeros(len(selectors))
 
-def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0.3, min_support=1, u=70, weight=2):
+def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=2, beam_width=10, result_set_size=10, threshold=0, min_support=5, u=100, weight=2):
     tempData = [] #debug
     selectors_vals= []
     last_beam = None     
@@ -727,10 +727,7 @@ def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=
     print(beam)
     [selectors, original_features, sg_to_index] = createSelectors(X, []) 
     new_W = createNewWeightMatrix(selectors, original_features, W)
-
     history ={}
-
-
     while beam != last_beam and depth < max_depth-1:
         print("depth:{}".format(depth+2))
         last_beam = beam.copy()
@@ -740,7 +737,6 @@ def beamSearch_auxData_adaptive_efficient(V, W, target, X,Y, measure, max_depth=
         initalizeScoreMatrix(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
         for i in range(beam_width-1, -1,-1):
             print("expanding {}".format(last_beam[i][1]))
-            # printScoreMatrixStats(F, computedScores, sg_to_beamIndex, sg_to_index, selectors, visited)
             (i_score, last_sg) = last_beam[i]             
             if not getattr(last_sg, 'visited', False):
                 setattr(last_sg, 'visited', True)
@@ -803,7 +799,7 @@ def getOutputPaths(output_root, data_paths):
         dirs.append(target_path)
     return dirs
 
-def main_beamSearch_auxData_adaptive_efficient(input_root="scripts/sim_data/output", output_root="scripts/sim_data/result/"):
+def main_beamSearch_auxData_adaptive_efficient(input_root="scripts/sim_data/data_params", output_root="scripts/result/data_param/"):
     # output_root="scripts/sim_data/result/"
     input_paths = getDataPaths(input_root)
     output_paths  = getOutputPaths(output_root, input_paths)
@@ -821,6 +817,78 @@ def main_beamSearch_auxData_adaptive_efficient(input_root="scripts/sim_data/outp
         with open(output_file_path, "wb") as f:
             pickle.dump(result[0], f)
     return result
+
+
+def main_data_params(input_root="scripts/sim_data/data_params/n/500", output_root="scripts/result/model_param/"):
+    # output_root="scripts/sim_data/result/"
+    input_paths = getDataPaths(input_root)
+    output_paths  = getOutputPaths(output_root, input_paths)
+    target = createTarget("outcome",True)
+    for i  in range(len(input_paths[:2])):
+        input_path = input_paths[i]
+        output_path = output_paths[i]
+        print (input_path)
+        print (output_path)
+        [X, Y, V, W] = readData_sim(input_path)    
+        result = beamSearch_auxData_adaptive_efficient(V,W,target, X, Y, "")
+        output_file_path = os.path.join(output_path, "res.pkl")
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        with open(output_file_path, "wb") as f:
+            pickle.dump(result[0], f)
+    return result
+
+
+def main_model_params(default_input_root="scripts/sim_data/output/param_p_0.25/1", output_root="scripts/sim_data/result_model/"):
+    # params_beam_width = [50 100 200 400]
+    params_beam_width = [5, 10, 20 ]
+    params_u = [50, 100, 200, 400]
+    params_weight = [1/2, 1, 2, 4]
+    params_min_sup =  [2, 5, 10, 20]
+
+    trial_num  = 100
+
+    run_function("beam_width", params_beam_width, trial_num, default_input_root, output_root)
+    run_function("u", params_u, trial_num, default_input_root, output_root)
+    run_function("weight", params_weight, trial_num, default_input_root, output_root)
+    run_function("min_support", params_min_sup, trial_num, default_input_root, output_root)
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("model", help="model")
+    parser.add_argument("input_path", help="input path")
+    parser.add_argument("output_path", help="ioutput path")
+    args = parser.parse_args()
+    if args.model == "data_params":
+        main_data_params(input_root=args.input_path, output_root=args.output_path)
+    else:
+        main_model_params(default_input_root=sgd.input_path, output_root=sgd.output_path)
+
+
+
+result_global=None
+def run_function(param_name,param_values, trial_num, default_input_root, output_root):
+    print("parameter: {}".format(param_name))
+
+    target = createTarget("outcome",True)
+    for value in param_values:
+        print("value  : {}".format(value))
+        for trial in range(trial_num):
+            print("trial: {}".format(trial))
+            [X, Y, V, W] = readData_sim(default_input_root)
+            line = """global result_global; result_global= beamSearch_auxData_adaptive_efficient(V,W,target, X, Y, "", {}={})""".format(param_name, value) 
+            exec(line)
+            # result = beamSearch_auxData_adaptive_efficient(V,W,target, X, Y, "", max_depth=2, beam_width=beam_width, result_set_size=beam_width, threshold=0, u=100, weight=2, min_support=5)
+            target_folder = os.path.join(output_root, param_name, str(value), str(trial))
+            output_file_path = os.path.join(target_folder, "res.pkl")   
+            print ("output Path: {}".format(output_file_path))             
+            if not os.path.exists(target_folder):
+                os.makedirs(target_folder)        
+            with open(output_file_path, "wb") as f:
+                pickle.dump(result_global[0], f)
+
 
 def main_beam_auxData_greedy():
     [X, Y, V, W] = readData()
