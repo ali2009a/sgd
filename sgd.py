@@ -826,7 +826,7 @@ def main_data_params(input_root="scripts/sim_data/data_params/n/500", output_roo
     input_paths = getDataPaths(input_root)
     output_paths  = getOutputPaths(output_root, input_paths)
     target = createTarget("outcome",True)
-    for i  in range(len(input_paths[:2])):
+    for i  in range(len(input_paths)):
         input_path = input_paths[i]
         output_path = output_paths[i]
         print (input_path)
@@ -843,18 +843,17 @@ def main_data_params(input_root="scripts/sim_data/data_params/n/500", output_roo
 
 def main_model_params(default_input_root="scripts/sim_data/output/param_p_0.25/1", output_root="scripts/sim_data/result_model/"):
     # params_beam_width = [50 100 200 400]
-    params_beam_width = [5, 10, 20 ]
+    params_beam_width = [5, 10, 20, 30 ]
     params_u = [50, 100, 200, 400]
     params_weight = [1/2, 1, 2, 4]
     params_min_sup =  [2, 5, 10, 20]
 
     trial_num  = 100
 
-    run_function("beam_width", params_beam_width, trial_num, default_input_root, output_root)
     run_function("u", params_u, trial_num, default_input_root, output_root)
     run_function("weight", params_weight, trial_num, default_input_root, output_root)
-    run_function("min_support", params_min_sup, trial_num, default_input_root, output_root)
-
+    #run_function("min_support", params_min_sup, trial_num, default_input_root, output_root)
+    run_function("beam_width", params_beam_width, trial_num, default_input_root, output_root)
 
 
 result_global=None
