@@ -1,13 +1,13 @@
 trial_num=10
 
 m_active = 0;% number of features
-n_active = 0;% number of samples
-l1_active = 0;    % number of singular causes
-l2_active = 0;    % number of pair causes
+n_active = 1;% number of samples
+l1_active = 1;    % number of singular causes
+l2_active = 1;    % number of pair causes
 p_active = 1;% non-sparsity of signal
-z_active = 0;% non-sparsity of necessary confounders
-q_active = 0;% rate of noise
-sp_active = 0;% distribution mean of 1D Prior Score
+z_active = 1;% non-sparsity of necessary confounders
+q_active = 1;% rate of noise
+sp_active = 1;% distribution mean of 1D Prior Score
 
 
 root_directory = "./sim_data"
@@ -76,7 +76,7 @@ if p_active
     params=p_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/param_p_%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/output/p/%.2f/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,l2,l3,params(i),z,q, sp,f, output_dir);
             fprintf("executed\n")
         end
@@ -100,7 +100,7 @@ if z_active
     params=z_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/param_z_%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/output/z/%.2f/%d/', root_directory, params(i), trial)
             %disp(output_dir)
             synthesize(m,n,l1,l2,l3,p,params(i),q,sp,f, output_dir);
         end
@@ -124,7 +124,7 @@ if q_active
     params=q_params
     for i = 1: length(params)
         for trial = 1:trial_num
-            output_dir=sprintf('%s/output/param_q_%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/output/q/%.2f/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,l2,l3,p,z,q_params(i),sp,f, output_dir);
         end
     end
@@ -147,7 +147,7 @@ if sp_active
     params=S1p_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/param_s1p_%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/output/sp/%.2f/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,l2,l3,p,z,q,params(i),f, output_dir);
         end
     end
@@ -170,7 +170,7 @@ if l1_active
     params=l1_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/param_l1_%d/%d/', root_directory,  params(i), trial)
+            output_dir=sprintf('%s/output/l1/%d/%d/', root_directory,  params(i), trial)
             synthesize(m,n,params(i),l2,l3,p,z,q,sp,f, output_dir);
         end
     end
@@ -193,7 +193,7 @@ if l2_active
     params=l2_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/param_l2_%d/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/output/l2/%d/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,params(i),l3,p,z,q,sp,f, output_dir);
         end
     end
