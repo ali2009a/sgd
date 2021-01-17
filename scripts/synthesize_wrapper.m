@@ -1,16 +1,16 @@
-trial_num=100
+trial_num=10
 
-m_active = 1;% number of features
+m_active = 0;% number of features
 n_active = 0;% number of samples
 l1_active = 0;    % number of singular causes
 l2_active = 0;    % number of pair causes
-p_active = 0;% non-sparsity of signal
+p_active = 1;% non-sparsity of signal
 z_active = 0;% non-sparsity of necessary confounders
 q_active = 0;% rate of noise
 sp_active = 0;% distribution mean of 1D Prior Score
 
 
-root_directory = "/home/aliarab/scratch/sgd/sim_data"
+root_directory = "./sim_data"
 
 if n_active
     fprintf("running:\n")
@@ -76,7 +76,7 @@ if p_active
     params=p_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/param_p_%.2f/%d/', root_directory,  root_directory, params(i), trial)
+            output_dir=sprintf('%s/output/param_p_%.2f/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,l2,l3,params(i),z,q, sp,f, output_dir);
             fprintf("executed\n")
         end
