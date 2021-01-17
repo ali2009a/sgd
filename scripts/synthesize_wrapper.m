@@ -1,4 +1,4 @@
-trial_num=10
+trial_num=5
 
 m_active = 0;% number of features
 n_active = 1;% number of samples
@@ -27,7 +27,7 @@ if n_active
     n_params=[125 250 500 1000]
     for i = 1: length(n_params)
         for trial = 1:trial_num
-            output_dir=sprintf('%s/output/param_n_%d/%d/', root_directory, n_params(i), trial)
+            output_dir=sprintf('%s/n/%d/%d/', root_directory, n_params(i), trial)
             synthesize(m,n_params(i),l1,l2,l3,p,z,q,sp,f, output_dir);
             fprintf("executed\n")
         end
@@ -51,7 +51,7 @@ if m_active
     params=m_params
     for i = 1: length(m_params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/param_m_%d/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/m/%d/%d/', root_directory, params(i), trial)
             synthesize(params(i),n,l1,l2,l3,p,z,q, sp, f, output_dir);
             fprintf("executed\n")
         end
@@ -76,7 +76,7 @@ if p_active
     params=p_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/p/%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/p/%.2f/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,l2,l3,params(i),z,q, sp,f, output_dir);
             fprintf("executed\n")
         end
@@ -100,7 +100,7 @@ if z_active
     params=z_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/z/%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/z/%.2f/%d/', root_directory, params(i), trial)
             %disp(output_dir)
             synthesize(m,n,l1,l2,l3,p,params(i),q,sp,f, output_dir);
         end
@@ -124,7 +124,7 @@ if q_active
     params=q_params
     for i = 1: length(params)
         for trial = 1:trial_num
-            output_dir=sprintf('%s/output/q/%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/q/%.2f/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,l2,l3,p,z,q_params(i),sp,f, output_dir);
         end
     end
@@ -147,7 +147,7 @@ if sp_active
     params=S1p_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/sp/%.2f/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/sp/%.2f/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,l2,l3,p,z,q,params(i),f, output_dir);
         end
     end
@@ -170,7 +170,7 @@ if l1_active
     params=l1_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/l1/%d/%d/', root_directory,  params(i), trial)
+            output_dir=sprintf('%s/l1/%d/%d/', root_directory,  params(i), trial)
             synthesize(m,n,params(i),l2,l3,p,z,q,sp,f, output_dir);
         end
     end
@@ -193,7 +193,7 @@ if l2_active
     params=l2_params
     for i = 1: length(params)
         for trial=1:trial_num
-            output_dir=sprintf('%s/output/l2/%d/%d/', root_directory, params(i), trial)
+            output_dir=sprintf('%s/l2/%d/%d/', root_directory, params(i), trial)
             synthesize(m,n,l1,params(i),l3,p,z,q,sp,f, output_dir);
         end
     end
