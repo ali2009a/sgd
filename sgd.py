@@ -787,10 +787,13 @@ def main_beam_auxData():
     return result
 
 
-def getDataPaths(path):
+def getDataPaths(path, params_list):
     dirs= []
     for subject_folder in glob.glob(os.path.join(path, "*", "*", "*")):
-        dirs.append(subject_folder)
+        tokens = subject_folder.split("/")
+        param_name = tokens[-3]
+        if param_name in params_list:
+            dirs.append(subject_folder)
     return dirs
 
 def getOutputPaths(output_root, data_paths):
@@ -821,9 +824,8 @@ def main_beamSearch_auxData_adaptive_efficient(input_root="scripts/sim_data/data
     return result
 
 
-def main_data_params(input_root="scripts/sim_data/data_params/n/500", output_root="scripts/result/model_param/"):
-    # output_root="scripts/sim_data/result/"
-    input_paths = getDataPaths(input_root)
+def main_data_params(input_root="scripts/sim_data/data_params/n/500", output_root="scripts/result/model_param/", params_list=""):
+    input_paths = getDataPaths(input_root, params_list)
     output_paths  = getOutputPaths(output_root, input_paths)
     target = createTarget("outcome",True)
     for i  in range(len(input_paths)):
@@ -1002,10 +1004,13 @@ if __name__ == "__main__":
     parser.add_argument("model", help="model")
     parser.add_argument("input_path", help="input path")
     parser.add_argument("output_path", help="ioutput path")
+    parser.add_argument("--params_list", help="list of parameters, separated by underscore")
+
     args = parser.parse_args()
     if args.model == "data_params":
         print("data_params....")
-        main_data_params(input_root=args.input_path, output_root=args.output_path)
+        params_list = set(args.params_list.split("_"))
+        main_data_params(input_root=args.input_path, output_root=args.output_path, params_list=params_list)
     else:
         print("model_params...")
         main_model_params(default_input_root=args.input_path, output_root=args.output_path)
