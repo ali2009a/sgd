@@ -1,21 +1,21 @@
 trial_num=100
 
 m_active = 1;% number of features
-n_active = 1;% number of samples
-l1_active = 1;    % number of singular causes
-l2_active = 1;    % number of pair causes
-p_active = 1;% non-sparsity of signal
-z_active = 1;% non-sparsity of necessary confounders
-q_active = 1;% rate of noise
-sp_active = 1;% distribution mean of 1D Prior Score
+n_active = 0;% number of samples
+l1_active = 0;    % number of singular causes
+l2_active = 0;    % number of pair causes
+p_active = 0;% non-sparsity of signal
+z_active = 0;% non-sparsity of necessary confounders
+q_active = 0;% rate of noise
+sp_active = 0;% distribution mean of 1D Prior Score
 
 
 
-root_directory = "/home/aliarab/scratch/sgd/sim_data/data_params"
+root_directory = "/home/aliarab/scratch/sgd4/sim_data/data_params"
 
 if n_active
     fprintf("running:\n")
-    m = 100;% number of features
+    m = 1000;% number of features
     n = 500;% number of samples
     l1 = 0;    % number of singular causes
     l2 = 1;    % number of pair causes
@@ -36,34 +36,10 @@ if n_active
 end
 
 
-if m_active
-    fprintf("initializing...\n")
-    m = 100;% number of features
-    n = 500;% number of samples
-    l1 = 0;    % number of singular causes
-    l2 = 1;    % number of pair causes
-    l3 = 0; % number of triplet causes
-    p = 1/4;% non-sparsity of signal
-    z = 3/4;% non-sparsity of necessary confounders
-    q = 0.05;% rate of noise
-    sp = 3/4;% distribution mean of 1D Prior Score
-    f = 28; % number of functions used
-    m_params=[2500 5000]
-    params=m_params
-    for i = 1: length(m_params)
-        for trial=1:trial_num
-            output_dir=sprintf('%s/m/%d/%d/', root_directory, params(i), trial)
-            synthesize(params(i),n,l1,l2,l3,p,z,q, sp, f, output_dir);
-            fprintf("executed\n")
-        end
-    end
-    %exit;
-end
-
 
 if p_active
     fprintf("initializing...\n")
-    m = 100;% number of features
+    m = 1000;% number of features
     n = 500;% number of samples
     l1 = 0;    % number of singular causes
     l2 = 1;    % number of pair causes
@@ -73,7 +49,7 @@ if p_active
     q = 0.05;% rate of noise
     sp = 3/4;% distribution mean of 1D Prior Score
     f = 28; % number of functions used
-    p_params= [1/16 1/8 1/4 1/2]
+    p_params= [0.1 0.2 0.3 0.5]
     params=p_params
     for i = 1: length(params)
         for trial=1:trial_num
@@ -87,7 +63,7 @@ end
 
 if z_active
     fprintf("initializing...\n")
-    m = 100;% number of features
+    m = 1000;% number of features
     n = 500;% number of samples
     l1 = 0;    % number of singular causes
     l2 = 1;    % number of pair causes
@@ -97,7 +73,7 @@ if z_active
     q = 0.05;% rate of noise
     sp = 3/4;% distribution mean of 1D Prior Score
     f = 28; % number of functions used
-    z_params=[1/2 3/4 7/8 15/16]
+    z_params=[1/4 1]
     params=z_params
     for i = 1: length(params)
         for trial=1:trial_num
@@ -111,7 +87,7 @@ end
 
 if q_active
     fprintf("initializing...\n")
-    m = 100;% number of features
+    m = 1000;% number of features
     n = 500;% number of samples
     l1 = 0;    % number of singular causes
     l2 = 1;    % number of pair causes
@@ -134,7 +110,7 @@ end
 
 if sp_active
     fprintf("initializing...\n")
-    m = 100;% number of features
+    m = 1000;% number of features
     n = 500;% number of samples
     l1 = 0;    % number of singular causes
     l2 = 1;    % number of pair causes
@@ -157,7 +133,7 @@ end
 
 if l1_active
     fprintf("initializing...\n")
-    m = 100;% number of features
+    m = 1000;% number of features
     n = 500;% number of samples
     l1 = 0;    % number of singular causes
     l2 = 1;    % number of pair causes
@@ -180,7 +156,7 @@ end
 
 if l2_active
     fprintf("initializing...\n")
-    m = 100;% number of features
+    m = 1000;% number of features
     n = 500;% number of samples
     l1 = 0;    % number of singular causes
     l2 = 1;    % number of pair causes
@@ -190,7 +166,7 @@ if l2_active
     q = 0.05;% rate of noise
     sp = 3/4;% distribution mean of 1D Prior Score
     f = 28; % number of functions used
-    l2_params =[0 1 2 3]
+    l2_params =[1 2 3 4]
     params=l2_params
     for i = 1: length(params)
         for trial=1:trial_num
@@ -198,4 +174,30 @@ if l2_active
             synthesize(m,n,l1,params(i),l3,p,z,q,sp,f, output_dir);
         end
     end
+end
+
+
+
+if m_active
+    fprintf("initializing...\n")
+    m = 1000;% number of features
+    n = 500;% number of samples
+    l1 = 0;    % number of singular causes
+    l2 = 1;    % number of pair causes
+    l3 = 0; % number of triplet causes
+    p = 1/4;% non-sparsity of signal
+    z = 3/4;% non-sparsity of necessary confounders
+    q = 0.05;% rate of noise
+    sp = 3/4;% distribution mean of 1D Prior Score
+    f = 28; % number of functions used
+    m_params=[20000]
+    params=m_params
+    for i = 1: length(m_params)
+        for trial=1:trial_num
+            output_dir=sprintf('%s/m/%d/%d/', root_directory, params(i), trial)
+            synthesize(params(i),n,l1,l2,l3,p,z,q, sp, f, output_dir);
+            fprintf("executed\n")
+        end
+    end
+    %exit;
 end

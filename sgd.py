@@ -97,7 +97,7 @@ def readData():
 #     soi = sgd.Conjuction([sgd.EquitySelector("814",1)])
 
 
-def readData_sim(path):
+def readData_sim(path, return_true_causes=False):
     print("reading data...")
     data_root= path
     features_num = getNumberOfFeatuers(data_root)
@@ -118,9 +118,35 @@ def readData_sim(path):
     # features=features.set_index("index")
     X=result.iloc[:,:-1]
     Y=result.iloc[:,-1:]
-    return [X, Y, feat_score, feat_similarity]
 
+    if return_true_causes==True:
+        print("11111111")
+        with open("{}/true_causes.csv".format(path)) as f:
+            true_causes= []
+            for line in f:
+                tokens = line.split(",")
+                sels = []
+                feature_ids_matlab = []
+                for t in tokens:
+                    if not RepresentsInt(t):
+                        continue
+                    feature_ids_matlab.append(int(t.strip()))  
+                feature_ids_matlab = np.unique(feature_ids_matlab)
+                for feature_id_matlab in feature_ids_matlab:
+                    sels.append(EquitySelector(str(feature_id_matlab-1),1))
+                true_causes.append(Conjuction(sels))
 
+    if return_true_causes==True:
+        return [X, Y, feat_score, feat_similarity, true_causes]
+    else:                    
+        return [X, Y, feat_score, feat_similarity]
+
+def RepresentsInt(s):
+    try: 
+        int(s)
+        return True
+    except ValueError:
+        return False
 
 
 class EquitySelector():
@@ -525,7 +551,7 @@ def computeProbability_efficient(i, j, computedScores, F, new_W, selectors, sg_t
         local_prob = score_info["best_so_far"][j]
     else:
         local_prob = 0        
-    final_prob = global_prob + weight*local_prob
+    final_prob =( (1-weight)*global_prob) + ( weight*local_prob)
     return final_prob
 
 def computeProbability(i, j, computedScores, F, new_W, selectors, sg_to_beamIndex):
@@ -843,31 +869,33 @@ def main_data_params(input_root="scripts/sim_data/data_params/n/500", output_roo
     return result
 
 
-def main_model_params(default_input_root="scripts/sim_data/output/param_p_0.25/1", output_root="scripts/sim_data/result_model/"):
-    # params_beam_width = [50 100 200 400]
-    params_beam_width = [5, 10, 20, 30 ]
-    params_u = [50, 100, 200, 400]
-    params_weight = [1/2, 1, 2, 4]
-    params_min_sup =  [2, 5, 10, 20]
+def main_model_params(input_root="scripts/sim_data/model_params/", output_root="scripts/results/model_params/", params_list=""):
+    #params_beam_width = [5, 10, 20, 30 ]
+    params_beam_width = [40]
+    #params_u  = [50, 100, 200, 300]
+    params_u  = [10, 25]
+    params_weight = ["0.00", "0.33", "0.50", "0.67", "1.00"]
 
-    trial_num  = 100
-
-    run_function("u", params_u, trial_num, default_input_root, output_root)
-    run_function("weight", params_weight, trial_num, default_input_root, output_root)
-    #run_function("min_support", params_min_sup, trial_num, default_input_root, output_root)
-    run_function("beam_width", params_beam_width, trial_num, default_input_root, output_root)
+    trial_num  = 50
+    if "u" in params_list:
+        run_function("u", params_u, trial_num, input_root, output_root)
+    if "weight" in params_list:
+        run_function("weight", params_weight, trial_num, input_root, output_root)
+    if "beamWidth" in params_list:
+        run_function("beam_width", params_beam_width, trial_num, input_root, output_root)
 
 
 result_global=None
-def run_function(param_name,param_values, trial_num, default_input_root, output_root):
+def run_function(param_name,param_values, trial_num, input_root, output_root):
     print("parameter: {}".format(param_name))
 
     target = createTarget("outcome",True)
     for value in param_values:
         print("value  : {}".format(value))
-        for trial in range(trial_num):
+        for trial in range(51,101):
             print("trial: {}".format(trial))
-            [X, Y, V, W] = readData_sim(default_input_root)
+            input_path_folder = os.path.join(input_root, param_name, str(value), str(trial)) 
+            [X, Y, V, W] = readData_sim(input_path_folder)
             line = """global result_global; result_global= beamSearch_auxData_adaptive_efficient(V,W,target, X, Y, "", {}={})""".format(param_name, value) 
             exec(line)
             # result = beamSearch_auxData_adaptive_efficient(V,W,target, X, Y, "", max_depth=2, beam_width=beam_width, result_set_size=beam_width, threshold=0, u=100, weight=2, min_support=5)
@@ -1013,4 +1041,5 @@ if __name__ == "__main__":
         main_data_params(input_root=args.input_path, output_root=args.output_path, params_list=params_list)
     else:
         print("model_params...")
-        main_model_params(default_input_root=args.input_path, output_root=args.output_path)
+        params_list = set(args.params_list.split("_"))
+        main_model_params(input_root=args.input_path, output_root=args.output_path, params_list=params_list)

@@ -29,6 +29,7 @@ S2 = abs(corr(X)); % 2D Similarity
 %disp([num2str(l1) ' single & ' num2str(l2) ' pair causes: '])
 %disp(v)
 %x = input('Export to CSV? [1/0]');
+vv  = [V1;V2]
 x=1;
 mkdir(output_dir)
 if x
@@ -36,7 +37,8 @@ if x
     csvwrite(fullfile(output_dir,'V.csv'),S1);
     csvwrite(fullfile(output_dir,'Y.csv'),y); 
     csvwrite(fullfile(output_dir,'X.csv'),X); 
-    csvwrite(fullfile(output_dir,'true_causes.csv'),v)
+    csvwrite(fullfile(output_dir,'true_causes_old.csv'),v)
+    csvwrite(fullfile(output_dir,'true_causes.csv'),vv)
 end
 
 end
